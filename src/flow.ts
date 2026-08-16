@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { appendFile, mkdir } from "node:fs/promises";
+import { constants } from "node:fs";
+import { lstat, mkdir, open } from "node:fs/promises";
 import path from "node:path";
 import { evaluateSpend, defaultDevPolicy } from "./policy/evaluate.js";
 import { buildReceipt } from "./receipt/build.js";
@@ -22,6 +23,8 @@ export interface RunSpendInput {
   approve?: boolean;
   toolResult?: unknown;
   receiptDir?: string;
+  /** @internal Return the receipt without writing it. Defaults to true for CLI compatibility. */
+  persistReceipt?: boolean;
 }
 
 export interface RunSpendResult {
@@ -56,7 +59,7 @@ export async function runSpendFlow(input: RunSpendInput): Promise<RunSpendResult
       payment: null,
       toolResultHash: null,
     });
-    await maybePersist(receipt, input.receiptDir);
+    await maybePersist(receipt, input.receiptDir, input.persistReceipt);
     return { ok: false, receipt, message };
   }
 
@@ -79,7 +82,7 @@ export async function runSpendFlow(input: RunSpendInput): Promise<RunSpendResult
         payment: null,
         toolResultHash: null,
       });
-      await maybePersist(receipt, input.receiptDir);
+      await maybePersist(receipt, input.receiptDir, input.persistReceipt);
       return {
         ok: false,
         receipt,
@@ -125,14 +128,31 @@ export async function runSpendFlow(input: RunSpendInput): Promise<RunSpendResult
     payment,
     toolResultHash,
   });
-  await maybePersist(receipt, input.receiptDir);
+  await maybePersist(receipt, input.receiptDir, input.persistReceipt);
   message = `paid via ${payment.rail}; receipt ${receipt.receiptId}`;
   return { ok: true, receipt, message };
 }
 
-async function maybePersist(receipt: SpendReceipt, receiptDir?: string): Promise<void> {
+async function maybePersist(
+  receipt: SpendReceipt,
+  receiptDir?: string,
+  persistReceipt = true,
+): Promise<void> {
+  if (!persistReceipt) return;
   const dir = receiptDir ?? path.join(process.cwd(), "receipts");
   await mkdir(dir, { recursive: true });
+  if ((await lstat(dir)).isSymbolicLink()) {
+    throw new Error("receipt directory must not be a symbolic link");
+  }
   const file = path.join(dir, "agentspend.jsonl");
-  await appendFile(file, `${JSON.stringify(receipt)}\n`, "utf8");
+  const handle = await open(
+    file,
+    constants.O_APPEND | constants.O_CREAT | constants.O_WRONLY | constants.O_NOFOLLOW,
+    0o600,
+  );
+  try {
+    await handle.appendFile(`${JSON.stringify(receipt)}\n`, "utf8");
+  } finally {
+    await handle.close();
+  }
 }

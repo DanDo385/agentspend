@@ -3,6 +3,9 @@ import { defaultDevPolicy, evaluateSpend } from "../src/policy/evaluate.js";
 import { assertReceiptIntegrity, buildReceipt } from "../src/receipt/build.js";
 import { runSpendFlow } from "../src/flow.js";
 import { randomUUID } from "node:crypto";
+import { mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 
 describe("policy engine", () => {
   it("auto-allows small in-policy spend", () => {
@@ -111,6 +114,43 @@ describe("receipts", () => {
 });
 
 describe("flow", () => {
+  it("can return a receipt without persisting it", async () => {
+    const receiptDir = await mkdtemp(path.join(tmpdir(), "agentspend-no-persist-"));
+    try {
+      const result = await runSpendFlow({
+        amountUsd: 0.1,
+        merchantClass: "web-search",
+        tool: "tavily.search",
+        receiptDir,
+        persistReceipt: false,
+      });
+      expect(result.ok).toBe(true);
+      expect(assertReceiptIntegrity(result.receipt)).toBe(true);
+      expect(await readdir(receiptDir)).toEqual([]);
+    } finally {
+      await rm(receiptDir, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses to append receipts through a symlink", async () => {
+    const receiptDir = await mkdtemp(path.join(tmpdir(), "agentspend-symlink-"));
+    const target = path.join(receiptDir, "target.jsonl");
+    await writeFile(target, "original\n", "utf8");
+    await symlink(target, path.join(receiptDir, "agentspend.jsonl"));
+
+    try {
+      await expect(runSpendFlow({
+        amountUsd: 0.1,
+        merchantClass: "web-search",
+        tool: "tavily.search",
+        receiptDir,
+      })).rejects.toThrow();
+      expect(await readFile(target, "utf8")).toBe("original\n");
+    } finally {
+      await rm(receiptDir, { recursive: true, force: true });
+    }
+  });
+
   it("blocks approval-required spend without --approve", async () => {
     const result = await runSpendFlow({
       amountUsd: 0.4,

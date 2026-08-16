@@ -26,7 +26,13 @@ npm install
 npm test
 npm run cli -- status
 npm run cli -- simulate-pay --amount-usd 0.25 --merchant-class web-search --tool tavily.search
+npm run mcp   # start the MCP server over stdio
 ```
+
+The CLI appends receipts to `./receipts/agentspend.jsonl`. The MCP server does
+not write receipts to disk: `agentspend_pay` returns its content-hashed receipt
+in the tool result and tracks successful simulated spend against the trusted
+daily cap for the lifetime of that server process.
 
 ## Layout
 
@@ -35,6 +41,7 @@ src/policy/     spend policy evaluation
 src/receipt/    exportable receipt schema + hashing
 src/sim/        simulated x402-like payment
 src/cli.ts      developer CLI
+src/mcp/        MCP server (stdio) for agent hosts: status, evaluate, pay
 tests/          vitest suite
 docs/           architecture and security notes
 ```

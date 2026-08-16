@@ -5,14 +5,16 @@
   "type": "module",
   "description": "Local-first agent spend control plane: policy, approval, receipts. No custody.",
   "bin": {
-    "agentspend": "./dist/cli.js"
+    "agentspend": "./dist/cli.js",
+    "agentspend-mcp": "./dist/mcp/server.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "cli": "tsx src/cli.ts"
+    "cli": "tsx src/cli.ts",
+    "mcp": "tsx src/mcp/server.ts"
   },
   "engines": {
     "node": ">=20"
@@ -22,5 +24,9 @@
     "tsx": "^4.20.5",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^4.4.3"
   }
 }

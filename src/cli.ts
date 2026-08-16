@@ -9,6 +9,7 @@ function printHelp(): void {
 Usage:
   agentspend status
   agentspend simulate-pay --amount-usd <n> --merchant-class <class> --tool <name> [--approve] [--purpose text]
+  agentspend mcp
 
 Merchant classes:
   web-search | web-scrape | llm-inference | compute | other
@@ -16,6 +17,8 @@ Merchant classes:
 Notes:
   - No live funds, keys, or networks.
   - Receipts append to ./receipts/agentspend.jsonl
+  - 'agentspend mcp' starts the MCP server (stdio) exposing agentspend_status,
+    agentspend_evaluate, and agentspend_pay to any MCP-speaking agent.
 `);
 }
 
@@ -79,6 +82,12 @@ async function main(): Promise<void> {
 
     console.log(JSON.stringify(result, null, 2));
     if (!result.ok) process.exitCode = 1;
+    return;
+  }
+
+  if (cmd === "mcp") {
+    const { startMcpServer } = await import("./mcp/server.js");
+    await startMcpServer();
     return;
   }
 
